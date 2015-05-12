@@ -1,0 +1,49 @@
+---
+title: "Market making in simple random world"
+---
+
+This script simulates profit of a market maker in a very simple world. In this world:
+- there are no trading costs
+- no short selling restrictions
+- market maker's inventory is not allowed to be onle -1, 0, or 1
+
+Each trading cycle looks like this:
+
+1. midpoint price either decreases or increases by one from its previous value, randomly with equal probability (e.g. 100 -> 99, or 100 -> 101)
+2. market maker instantly adjusts bid and ask, with bid-spead and ask-spread of 1 (e.g. midpoint = 100, bid = 99, ask = 101). If the invetory is already at -1, the market mar does no post the ask. f the invetory is 1, market maker is not allowe to post the bid.
+3. A marketable trade (volume always equal to 1) arrives . If the trade is a buy and market maker's inventory is not -1, then he trades at his ask. If the inventory is -1 then the market maker does not trade. If the trade is a sell and market maker's inventory is not 1, market maker trades at the bid. If the inventory is 1, the market maker does not trade. 
+
+We will simulate N trading cycles and look at the profit curve.
+
+
+```{r, cache=TRUE}
+N <- 10000
+# avoid for loops, use vectorized code for speed
+set.seed(123)  # so we are able to reproduce
+midpoints <- cumsum(c(100, round(runif(N-1)) * 2 - 1))
+marketable_trades <- round(runif(N)) * 2 - 1  # -1 means cash outflow, so market maker buys, or equivalently the bid is hit 
+
+inventory_always_trade <- cumsum(marketable_trades)
+
+market_maker_trades <- abs(inventory_always_trade) < 2
+
+plot(cumsum(marketable_trades[market_maker_trades]), type='l')
+
+head(market_maker_trades, 14)
+head(marketable_trades, 10)
+cumsum(head(marketable_trades, 10))
+cumsum(head(marketable_trades, 14)[head(market_maker_trades, 14)])
+
+head(marketable_trades, 14)
+cumsum(head(marketable_trades, 14))
+
+
+
+
+
+# compute the trade price (bid or ask) then compute the cash flow:
+cash_flow <- (midpoints + trades) * trades
+plot(cumsum(cash_flow), type='l')
+plot(cumsum(trades), type='l')
+head(cash_flow)
+```
