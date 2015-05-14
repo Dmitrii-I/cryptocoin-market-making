@@ -5,45 +5,104 @@ title: "Market making in simple random world"
 This script simulates profit of a market maker in a very simple world. In this world:
 - there are no trading costs
 - no short selling restrictions
-- market maker's inventory is not allowed to be onle -1, 0, or 1
+- market maker's inventory can be only -1, 0, or 1
+- there are no other market makers
+- unlimited flow of marketable (aka aggressive) orders
+
 
 Each trading cycle looks like this:
 
 1. midpoint price either decreases or increases by one from its previous value, randomly with equal probability (e.g. 100 -> 99, or 100 -> 101)
-2. market maker instantly adjusts bid and ask, with bid-spead and ask-spread of 1 (e.g. midpoint = 100, bid = 99, ask = 101). If the invetory is already at -1, the market mar does no post the ask. f the invetory is 1, market maker is not allowe to post the bid.
+2. market maker is allowed to instantly adjust the bid and the ask, with bid-spead and ask-spread of 1 (e.g. midpoint = 100, bid = 99, ask = 101). If the invetory is already at -1, the market maker does no post the ask. If the inventory is 1, the market maker is not allowed to post the bid.
 3. A marketable trade (volume always equal to 1) arrives . If the trade is a buy and market maker's inventory is not -1, then he trades at his ask. If the inventory is -1 then the market maker does not trade. If the trade is a sell and market maker's inventory is not 1, market maker trades at the bid. If the inventory is 1, the market maker does not trade. 
 
 We will simulate N trading cycles and look at the profit curve.
 
 
 ```{r, cache=TRUE}
+
+random_prices <- function(n, start_price=100, rng_seed=123) {
+    # Generate random prices, with lag-1 differences in {-1, 0, 1}
+    #
+    # Arguments:
+    # n             number of prices to generate
+    # start_price   the starting price
+    # seed          seed to inialize the RNG with
+    #
+    # Returns:
+    # random_prices     vector of length n, with random prices
+    
+    set.seed(rng_seed)
+    return(cumsum(c(start_price, round(runif(n-1) * 2 - 1))))
+}
+
+
+allowed_trades <- function(aggro_orders, inventory_limits=c(-1, 1)) {
+    # Returns a logical vector indicating which trades can be
+    # executed without breaching inventory_limits.
+    # Arguments:
+    #           aggro_orders        a vector of values {-1, 1}, with -1 
+    #                               representing an aggressive sell order (MM trades at the bid) 
+    #                               and 1 representing aggressive buy order (MM trades at the ask)
+    #           inventory_limits    a 2-value vector, e.g. (-5, 6) representing
+    #                               the limits of inventory that the market maker
+    #                               has to adhere to.
+    # Returns:  
+    #           allowed_trades      logical vector of same length as the trades argument, indicating
+    #                               trades that the market maker can particiapte in without going 
+    #                               past the inventory limits.
+    # 
+    n <- length(aggro_orders)
+    allowed_trades <- rep(NA, n)  # pre-allocate
+    lower <- min(inventory_limits)
+    upper <- max(inventory_limits)
+    
+    inventory <- 0
+    for (i in 1:n) {
+        # a sell trade (-1) increases inventory, a buy (+1) decreases
+        # hence we need to subtract the trade from current inventory
+        # to get new inventory
+        new_inventory <- inventory - aggro_orders[i] 
+        if (new_inventory >= lower & new_inventory <= upper) {
+            inventory <- new_inventory
+            allowed_trades[i] <- TRUE
+        } else {
+            # inventory remains unchanged as MM does not trade
+            allowed_trades[i] <- FALSE
+        }
+    }
+    
+    return(allowed_trades)
+}
+
+
+random_orders <- function(n, rng_seed=123) {
+    # Generate buy and sell orders randomly
+    #
+    # Arguments:    
+    # n       number of orders to generate
+    # seed    seed to inialize the RNG with
+    #
+    # Returns:
+    # random_orders     a vector of length n, with values in {-1, 1}
+    #                   with -1 being a sell order and 1 a buy order
+    set.seed(rng_seed)
+    return(round(runif(n)) * 2 - 1)
+}
+
 N <- 10000
-# avoid for loops, use vectorized code for speed
-set.seed(123)  # so we are able to reproduce
-midpoints <- cumsum(c(100, round(runif(N-1)) * 2 - 1))
-marketable_trades <- round(runif(N)) * 2 - 1  # -1 means cash outflow, so market maker buys, or equivalently the bid is hit 
-
-inventory_always_trade <- cumsum(marketable_trades)
-
-market_maker_trades <- abs(inventory_always_trade) < 2
-
-plot(cumsum(marketable_trades[market_maker_trades]), type='l')
-
-head(market_maker_trades, 14)
-head(marketable_trades, 10)
-cumsum(head(marketable_trades, 10))
-cumsum(head(marketable_trades, 14)[head(market_maker_trades, 14)])
-
-head(marketable_trades, 14)
-cumsum(head(marketable_trades, 14))
-
-
-
-
+orders <- random_orders(N)
+midpoints <- random_prices(N)
+trades <- allowed_trades(orders, c(-5, 5))
 
 # compute the trade price (bid or ask) then compute the cash flow:
-cash_flow <- (midpoints + trades) * trades
+# because bid-spread is 1 and ask spread is 1, we can simply
+# add midpoints and orders to get the execution prices. Then
+# multiply the execution price by the orders to get the MM's 
+# cash flow.
+cash_flow <- (midpoints[trades] + orders[trades]) * orders[trades]
+
+# visualize that paper profit
 plot(cumsum(cash_flow), type='l')
-plot(cumsum(trades), type='l')
-head(cash_flow)
+plot(midpoints, type='l')
 ```
