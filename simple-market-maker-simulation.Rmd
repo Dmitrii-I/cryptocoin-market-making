@@ -2,22 +2,23 @@
 title: "Market making in simple random world"
 ---
 
-This script simulates profit of a market maker in a very simple world. In this world:
-- there are no trading costs
-- no short selling restrictions
-- market maker's inventory can be only -1, 0, or 1
-- there are no other market makers
-- unlimited flow of marketable (aka aggressive) orders
+We simulate profit of a market maker (MM) in a setting with simple assumptinons. We make the following assumptions:
 
+- one traded asset
+- one market maker
+- prices (midpoints) are determined exogenously and follow a random walk without drift
+- no trading costs
+- unrestricted short selling
+- MM has lower and upper limit on the inventory
+- marketable (i.e. liquidity taking or aggressive) trade with volume of 1 arrives every cycle
 
-Each trading cycle looks like this:
+Each cycle consists of these steps:
 
-1. midpoint price either decreases or increases by one from its previous value, randomly with equal probability (e.g. 100 -> 99, or 100 -> 101)
-2. market maker is allowed to instantly adjust the bid and the ask, with bid-spead and ask-spread of 1 (e.g. midpoint = 100, bid = 99, ask = 101). If the invetory is already at -1, the market maker does no post the ask. If the inventory is 1, the market maker is not allowed to post the bid.
-3. A marketable trade (volume always equal to 1) arrives . If the trade is a buy and market maker's inventory is not -1, then he trades at his ask. If the inventory is -1 then the market maker does not trade. If the trade is a sell and market maker's inventory is not 1, market maker trades at the bid. If the inventory is 1, the market maker does not trade. 
+1. midpoint price either decreases or increases by one from its previous value, randomly and with equal probability (e.g. 100 -> 99, or 100 -> 101)
+2. MM adjusts the bid and the ask, with bid-spead and ask-spread of 1 (e.g. midpoint = 100, bid = 99, ask = 101). If current inventory equals lower limit, the MM does not post the ask. If the current inventory equals upper limit, the MM does not post the bid.
+3. A market order (volume always equal to 1) arrives. If the order is a buy and MM posted an ask, a trade occurs. If the market order is a sell and market maker had posted a bid, a trade occurs. 
 
-We will simulate N trading cycles and look at the profit curve.
-
+We will simulate N = 10,000 cycles and look at the profit curve.
 
 ```{r, cache=TRUE}
 
@@ -93,7 +94,8 @@ random_orders <- function(n, rng_seed=123) {
 N <- 10000
 orders <- random_orders(N)
 midpoints <- random_prices(N)
-trades <- allowed_trades(orders, c(-5, 5))
+inventory_limits <- c(-1, 1)  
+trades <- allowed_trades(orders, inventory_limits)
 
 # compute the trade price (bid or ask) then compute the cash flow:
 # because bid-spread is 1 and ask spread is 1, we can simply
@@ -101,8 +103,9 @@ trades <- allowed_trades(orders, c(-5, 5))
 # multiply the execution price by the orders to get the MM's 
 # cash flow.
 cash_flow <- (midpoints[trades] + orders[trades]) * orders[trades]
-
+end_profit <- sum(cash_flow)
 # visualize that paper profit
-plot(cumsum(cash_flow), type='l')
+plot(cumsum(cash_flow), type='l',
+     main=paste('Profit MM at the end:', end_profit))
 plot(midpoints, type='l')
 ```
